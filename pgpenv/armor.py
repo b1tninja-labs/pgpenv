@@ -14,18 +14,18 @@ __all__ = [
 
 
 def encode(packets: bytes, headers: dict) -> str:
-    """Pending behaviour defined by RFC 9580.
+    """Pending behaviour defined by RFC 9580 sec. 6.2.
 
     Not implemented yet. See the ``armor.encode()`` row in ROADMAP.md; this stub raises
     on purpose so nothing downstream mistakes it for working code.
     """
-    raise NotImplementedError("encode() is not implemented: RFC 9580")
+    raise NotImplementedError("encode() is not implemented: RFC 9580 sec. 6.2")
 
 
 def decode(text: str) -> bytes:
-    """Pending behaviour defined by RFC 9580.
+    """Pending behaviour defined by RFC 9580 sec. 6.2.
 
     Not implemented yet. See the ``armor.decode()`` row in ROADMAP.md; this stub raises
     on purpose so nothing downstream mistakes it for working code.
     """
-    raise NotImplementedError("decode() is not implemented: RFC 9580")
+    raise NotImplementedError("decode() is not implemented: RFC 9580 sec. 6.2")

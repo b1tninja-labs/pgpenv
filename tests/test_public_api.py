@@ -15,16 +15,16 @@ import pytest
 import pgpenv as package
 
 SURFACE = [
-    ("packet", "iter_packets", "RFC 9580"),
-    ("packet", "encode_packet", "RFC 9580"),
-    ("key", "load_key", "RFC 9580"),
-    ("key", "fingerprint", "RFC 9580"),
-    ("signature", "sign", "RFC 9580"),
-    ("signature", "verify", "RFC 9580"),
+    ("packet", "iter_packets", "RFC 9580 sec. 4"),
+    ("packet", "encode_packet", "RFC 9580 sec. 4.2"),
+    ("key", "load_key", "RFC 9580 sec. 5.5"),
+    ("key", "fingerprint", "RFC 9580 sec. 5.5.4"),
+    ("signature", "sign", "RFC 9580 sec. 5.2"),
+    ("signature", "verify", "RFC 9580 sec. 5.2"),
     ("session", "encrypt", "RFC 9580"),
     ("session", "decrypt", "RFC 9580"),
-    ("armor", "encode", "RFC 9580"),
-    ("armor", "decode", "RFC 9580"),
+    ("armor", "encode", "RFC 9580 sec. 6.2"),
+    ("armor", "decode", "RFC 9580 sec. 6.2"),
     ("limits", "check", "design"),
 ]
 
@@ -43,7 +43,10 @@ def test_surface_is_documented(module_name, fn, cite):
     module = importlib.import_module(package.__name__ + "." + module_name)
     target = getattr(module, fn)
     assert target.__doc__, fn + " needs a docstring"
-    assert cite in target.__doc__, fn + " must cite the document that defines it"
+    # Docstrings are wrapped, so a long citation can span a line break; compare words, not layout.
+    assert " ".join(cite.split()) in " ".join(target.__doc__.split()), (
+        fn + " must cite the document that defines it"
+    )
 
 
 @pytest.mark.parametrize(("module_name", "fn", "cite"), SURFACE)

@@ -22,18 +22,18 @@ __all__ = [
 
 
 def iter_packets(raw: IO) -> Iterator:
-    """Pending behaviour defined by RFC 9580.
+    """Pending behaviour defined by RFC 9580 sec. 4.
 
     Not implemented yet. See the ``packet.iter_packets()`` row in ROADMAP.md; this stub
     raises on purpose so nothing downstream mistakes it for working code.
     """
-    raise NotImplementedError("iter_packets() is not implemented: RFC 9580")
+    raise NotImplementedError("iter_packets() is not implemented: RFC 9580 sec. 4")
 
 
 def encode_packet(packet: Packet) -> bytes:
-    """Pending behaviour defined by RFC 9580.
+    """Pending behaviour defined by RFC 9580 sec. 4.2.
 
     Not implemented yet. See the ``packet.encode_packet()`` row in ROADMAP.md; this stub
     raises on purpose so nothing downstream mistakes it for working code.
     """
-    raise NotImplementedError("encode_packet() is not implemented: RFC 9580")
+    raise NotImplementedError("encode_packet() is not implemented: RFC 9580 sec. 4.2")

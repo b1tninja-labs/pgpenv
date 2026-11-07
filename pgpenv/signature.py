@@ -24,18 +24,18 @@ __all__ = [
 
 
 def sign(data: bytes, key: Key, policy: Policy) -> Signature:
-    """Pending behaviour defined by RFC 9580.
+    """Pending behaviour defined by RFC 9580 sec. 5.2.
 
     Not implemented yet. See the ``signature.sign()`` row in ROADMAP.md; this stub raises
     on purpose so nothing downstream mistakes it for working code.
     """
-    raise NotImplementedError("sign() is not implemented: RFC 9580")
+    raise NotImplementedError("sign() is not implemented: RFC 9580 sec. 5.2")
 
 
 def verify(data: bytes, sig: Signature, key: Key) -> Verification:
-    """Pending behaviour defined by RFC 9580.
+    """Pending behaviour defined by RFC 9580 sec. 5.2.
 
     Not implemented yet. See the ``signature.verify()`` row in ROADMAP.md; this stub
     raises on purpose so nothing downstream mistakes it for working code.
     """
-    raise NotImplementedError("verify() is not implemented: RFC 9580")
+    raise NotImplementedError("verify() is not implemented: RFC 9580 sec. 5.2")

@@ -3,8 +3,8 @@
 | Document | Status | Published | Verified against the publisher record on |
 |---|---|---|---|
 | RFC 9580 | Proposed Standard | 2024-07 | 2026-11-05 |
-| RFC 4880 | Obsolete | 2007-10 | 2026-11-05 |
-| RFC 4880bis | n/a | - | 2026-11-05 |
+| RFC 4880 | Obsolete | 2007-11 | 2026-11-05 |
+| RFC 9980 | Proposed Standard | 2026-06 | 2026-11-05 |
 
 Citation rules, in the order they most often get broken:
 

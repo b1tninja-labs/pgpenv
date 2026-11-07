@@ -43,13 +43,14 @@ document, which is the honest grain size for a plan. See [docs/rfc-map.md](docs/
 | Document | Status | Published | What it gives this project |
 |---|---|---|---|
 | RFC 9580 | Proposed Standard | 2024-07 | the current format: packets, v6 keys, algorithm policy, AEAD |
-| RFC 4880 | Obsolete | 2007-10 | the v4 wire a decade of material is still wearing; readable, never writable |
-| RFC 4880bis | n/a | - | placeholder row: replace with the successor documents this project must consult |
+| RFC 4880 | Obsolete | 2007-11 | the v4 wire a decade of material is still wearing; readable, never writable |
+| RFC 9980 | Proposed Standard | 2026-06 | post-quantum public key algorithms layered on RFC 9580; read before fixing the algorithm policy |
 
 ### Errata watch
 
 - RFC 9580 carries 7 verified errata. Read them before writing a single parser, because several concern key material encoding.
 - RFC 9580 obsoletes RFC 4880, RFC 5581 and RFC 6637: recipes copied from those documents may describe behaviour it removed.
+- RFC 9980 extends RFC 9580 with ML-KEM, ML-DSA and SLH-DSA; it has no verified errata (1 on file) as of 2026-11-07 (rfclib).
 
 ## Module layout
 
@@ -81,7 +82,8 @@ Declared as a floor with no ceiling: the application that installs this library 
 ## Install
 
 ```bash
-git clone https://github.com/b1tninja/pgpenv.cd pgpenv
+git clone https://github.com/b1tninja/pgpenv.git
+cd pgpenv
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\\Scripts\\Activate.ps1
 pip install -e ".[dev]"

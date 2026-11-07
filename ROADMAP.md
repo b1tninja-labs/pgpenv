@@ -11,24 +11,28 @@ behaviour regressed. Reading the code and agreeing with it is not enough. That i
 Legend: `[ok]` implemented and pinned by a named test -- `[part]` partial, with what is
 missing stated -- `[ ]` not implemented -- `[no]` deliberate non-goal.
 
+A Where cell marked `(to be written)` names the test that will pin the row once it exists; no
+such test has been written yet, and the row cannot leave `[ ]` until it has. The Milestone
+column places the row on the ladder in section 2, and `-` means it is not placed yet.
+
 Update the affected row in the same commit that changes the behaviour. A row and its test
 drift apart within one release, and the document becomes useless exactly when it is needed.
 
 ## 1. Obligations
 
-| Obligation | Spec | Status | Where |
-|---|---|---|---|
-| `packet.iter_packets()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::iter_packets` |
-| `packet.encode_packet()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::encode_packet` |
-| `key.load_key()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::load_key` |
-| `key.fingerprint()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::fingerprint` |
-| `signature.sign()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::sign` |
-| `signature.verify()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::verify` |
-| `session.encrypt()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::encrypt` |
-| `session.decrypt()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::decrypt` |
-| `armor.encode()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::encode` |
-| `armor.decode()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::decode` |
-| `limits.check()` | design | `[ ]` | `tests/test_obligations.py::check` |
+| Obligation | Spec | Status | Where | Milestone |
+|---|---|---|---|---|
+| `packet.iter_packets()` | RFC 9580 sec. 4 | `[ ]` | `tests/test_obligations.py::test_iter_packets` (to be written) | M1 |
+| `packet.encode_packet()` | RFC 9580 sec. 4.2 | `[ ]` | `tests/test_obligations.py::test_encode_packet` (to be written) | M1 |
+| `key.load_key()` | RFC 9580 sec. 5.5 | `[ ]` | `tests/test_obligations.py::test_load_key` (to be written) | M2 |
+| `key.fingerprint()` | RFC 9580 sec. 5.5.4 | `[ ]` | `tests/test_obligations.py::test_fingerprint` (to be written) | M2 |
+| `signature.sign()` | RFC 9580 sec. 5.2 | `[ ]` | `tests/test_obligations.py::test_sign` (to be written) | M3 |
+| `signature.verify()` | RFC 9580 sec. 5.2 | `[ ]` | `tests/test_obligations.py::test_verify` (to be written) | M3 |
+| `session.encrypt()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::test_encrypt` (to be written) | M4 |
+| `session.decrypt()` | RFC 9580 | `[ ]` | `tests/test_obligations.py::test_decrypt` (to be written) | M4 |
+| `armor.encode()` | RFC 9580 sec. 6.2 | `[ ]` | `tests/test_obligations.py::test_encode` (to be written) | M1 |
+| `armor.decode()` | RFC 9580 sec. 6.2 | `[ ]` | `tests/test_obligations.py::test_decode` (to be written) | M1 |
+| `limits.check()` | design | `[ ]` | `tests/test_obligations.py::test_check` (to be written) | M1 |
 
 ## 2. Milestones
 
@@ -46,6 +50,7 @@ the code existing. Coverage in `pyproject.toml` ratchets in the same commit.
 
 - RFC 9580 carries 7 verified errata. Read them before writing a single parser, because several concern key material encoding.
 - RFC 9580 obsoletes RFC 4880, RFC 5581 and RFC 6637: recipes copied from those documents may describe behaviour it removed.
+- RFC 9980 extends RFC 9580 with ML-KEM, ML-DSA and SLH-DSA; it has no verified errata (1 on file) as of 2026-11-07 (rfclib).
 
 ## 4. Deliberate non-goals
 
@@ -59,6 +64,8 @@ the code existing. Coverage in `pyproject.toml` ratchets in the same commit.
 ## 5. Open questions
 
 - which algorithm policy is default, and whether v4 writing is ever offered
+- acceptance for `limits.check()` (Spec: design, placed on M1): proposed as 'a packet stream that exceeds the packet size, nesting depth or key count bound raises before any further packet is decoded'; the row keeps its meaning until the owner accepts a sentence (D24)
+- M5 (certifications and binding checks, then the policy object) has no api row: add rows for it or drop the rung (D24)
 
 ## 6. Publication checklist
 

@@ -21,18 +21,18 @@ __all__ = [
 
 
 def load_key(raw: bytes) -> Key:
-    """Pending behaviour defined by RFC 9580.
+    """Pending behaviour defined by RFC 9580 sec. 5.5.
 
     Not implemented yet. See the ``key.load_key()`` row in ROADMAP.md; this stub raises
     on purpose so nothing downstream mistakes it for working code.
     """
-    raise NotImplementedError("load_key() is not implemented: RFC 9580")
+    raise NotImplementedError("load_key() is not implemented: RFC 9580 sec. 5.5")
 
 
 def fingerprint(key: Key) -> bytes:
-    """Pending behaviour defined by RFC 9580.
+    """Pending behaviour defined by RFC 9580 sec. 5.5.4.
 
     Not implemented yet. See the ``key.fingerprint()`` row in ROADMAP.md; this stub
     raises on purpose so nothing downstream mistakes it for working code.
     """
-    raise NotImplementedError("fingerprint() is not implemented: RFC 9580")
+    raise NotImplementedError("fingerprint() is not implemented: RFC 9580 sec. 5.5.4")

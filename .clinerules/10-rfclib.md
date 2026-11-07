@@ -47,8 +47,8 @@ with their line ranges.
 ## Section refs for this project
 
 - RFC 9580 (Proposed Standard, 2024-07)
-- RFC 4880 (Obsolete, 2007-10)
-- RFC 4880bis (n/a, -)
+- RFC 4880 (Obsolete, 2007-11)
+- RFC 9980 (Proposed Standard, 2026-06)
 
 ## Traps that have already bitten this portfolio
 
