@@ -274,8 +274,14 @@ def test_policy_decides_refused_unsupported_and_legacy() -> None:
     assert refused.status == "refused"
     assert "dsa" in (refused.reason or "").lower()
     assert verify_certification(dsa_sig, dsa, dsa, user_id=dsa_uid.body, policy="legacy").valid
-    unsupported = verify_certification(bp_sig, brainpool, brainpool, user_id=bp_uid.body)
+    # GnuPG 2.4.9 made this brainpoolP256r1 certification; sigwire's openpgp policy accepts the curve
+    assert verify_certification(bp_sig, brainpool, brainpool, user_id=bp_uid.body).valid
+    # a curve OID that is not in RFC 9580 Table 19 is unsupported, whatever sigwire could compute
+    odd = dataclasses.replace(brainpool.primary, curve_oid=bytes.fromhex("2B2403030208010108"))
+    odd_cert = dataclasses.replace(brainpool, primary=odd)
+    unsupported = verify_certification(bp_sig, odd_cert, odd_cert, user_id=bp_uid.body)
     assert unsupported.status == "unsupported"
+    assert "unknown curve" in (unsupported.reason or "")
 
 
 def test_a_version_6_key_and_a_version_4_signature_do_not_pair_and_the_reverse() -> None:
@@ -463,6 +469,89 @@ def test_v4_rsa_certification_with_sha3_verifies(hash_id: int, hasher: type, nam
 
 def hashes_digest(name: str, data: bytes) -> bytes:
     return hashlib.new(name.lower().replace("-", "_"), data).digest()
+
+
+# ---- Ed448 (RFC 9580 sec. 5.2.3.5, 12.7) ---------------------------------------------------------
+
+# The public key of the RFC 8032 section 7.4 "Blank" test vector, whose secret key that RFC publishes.
+ED448_PUBLIC = bytes.fromhex(
+    "5fd7449b59b461fd2ce787ec616ad46a1da1342485a70e1f8a0ea75d80e96778edf124769b46c7061bd6783df1e50f6c"
+    "d1fa1abeafe8256180"
+)
+# libgcrypt 1.12.2 signed SHA-512 of the stream assembled below (sec. 12.7: the digest is the message).
+ED448_SIGNATURE = bytes.fromhex(
+    "2a7d8c85a4222c0b6a248551ba42176435c5485e9e48f5f1b0967056cf91221b06c6013fe0d7ae73fcedacb7f1a347df"
+    "b21d1444b7327d3b009f54fd16d644123d6d5c558f19cf3287fbd40d84e9db217b99324fbcd2a53c221ac85d0aa1ea3a"
+    "f8099ff4c18844b4c675bec0d33125f22a00"
+)
+
+
+def _ed448_certificate(signature_octets: bytes) -> tuple[bytes, bytes]:
+    created = 1_700_000_000
+    key_body = bytes([4]) + struct.pack(">I", created) + bytes([28]) + ED448_PUBLIC
+    user_id = b"ed448 test <ed448@example.invalid>"
+    hashed_area = bytes([5, 2]) + struct.pack(">I", created)
+    head = bytes([4, 0x13, 28, 10]) + struct.pack(">H", len(hashed_area)) + hashed_area
+    stream = (
+        bytes([0x99])
+        + struct.pack(">H", len(key_body))
+        + key_body
+        + bytes([0xB4])
+        + struct.pack(">I", len(user_id))
+        + user_id
+        + head
+        + bytes([4, 0xFF])
+        + struct.pack(">I", len(head))
+    )
+    digest = hashlib.sha512(stream).digest()
+    body = head + struct.pack(">H", 0) + digest[:2] + signature_octets
+    return pkt(6, key_body) + pkt(13, user_id) + pkt(2, body), stream
+
+
+def test_ed448_certification_signed_by_libgcrypt_verifies() -> None:
+    """Version 4 Ed448 self-certification whose 114 signature octets libgcrypt 1.12.2 made.
+
+    Only the packets are assembled here (the same recipe as the SHA-3 test above); the signing key is the
+    RFC 8032 section 7.4 "Blank" key and the signature came from ``tools/gcrypt_ed448.c`` in the sigwire
+    project, an implementation independent of the OpenSSL behind ``cryptography``. The same program
+    reproduces that RFC vector's published signature byte for byte. No OpenPGP implementation available
+    here makes Ed448 (RFC 9580 has no sample, GnuPG 2.4.9 stops at Ed25519), so the row stays partial: this
+    is a real Ed448 signature in an OpenPGP frame that only pgpenv has read.
+    """
+    packets, stream = _ed448_certificate(ED448_SIGNATURE)
+    cert = key.load_key(packets)
+    assert cert.primary.algorithm == 28
+    (entry,) = cert.user_ids
+    (sig,) = entry.signatures
+    assert sig.material == ED448_SIGNATURE
+    assert signature.hash_stream(sig, key=cert.primary, user_id=entry.body) == stream
+    result = verify_certification(sig, cert, cert, user_id=entry.body)
+    assert result.valid, result
+    assert result.checked == ("hash", "left16", "signature")
+    assert verify_certification(sig, cert, cert, user_id=entry.body + b"x").status == "invalid"
+    flipped = bytearray(ED448_SIGNATURE)
+    flipped[3] ^= 1
+    bad_cert = key.load_key(_ed448_certificate(bytes(flipped))[0])
+    (bad_entry,) = bad_cert.user_ids
+    (bad_sig,) = bad_entry.signatures
+    assert (
+        verify_certification(bad_sig, bad_cert, bad_cert, user_id=bad_entry.body).status
+        == "invalid"
+    )
+
+
+def test_ed448_with_a_hash_under_512_bits_is_malformed() -> None:
+    """RFC 9580 sec. 5.2.3.5: a verifier MUST reject an Ed448 signature using a smaller digest."""
+    packets, _ = _ed448_certificate(ED448_SIGNATURE)
+    cert = key.load_key(packets)
+    (entry,) = cert.user_ids
+    (sig,) = entry.signatures
+    relabelled = dataclasses.replace(sig, hash_algo=8)  # SHA-256, with matching left 16 bits
+    stream = signature.hash_stream(relabelled, key=cert.primary, user_id=entry.body)
+    short = dataclasses.replace(relabelled, left16=hashlib.sha256(stream).digest()[:2])
+    result = verify_certification(short, cert, cert, user_id=entry.body)
+    assert result.status == "malformed", result
+    assert "512" in (result.reason or "")
 
 
 # ---- the seam -------------------------------------------------------------------------------------

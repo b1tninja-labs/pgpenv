@@ -39,7 +39,9 @@ ALGORITHMS = {
     "nistp384": ("ECDSA", "Key-Curve: nistp384", "valid"),
     "nistp521": ("ECDSA", "Key-Curve: nistp521", "valid"),
     "ed25519": ("EDDSA", "Key-Curve: ed25519", "valid"),
-    "brainpool": ("ECDSA", "Key-Curve: brainpoolP256r1", "unsupported"),
+    "brainpool": ("ECDSA", "Key-Curve: brainpoolP256r1", "valid"),
+    "brainpool384": ("ECDSA", "Key-Curve: brainpoolP384r1", "valid"),
+    "brainpool512": ("ECDSA", "Key-Curve: brainpoolP512r1", "valid"),
     "dsa2048": ("DSA", "Key-Length: 2048", "refused"),
 }
 
@@ -76,7 +78,9 @@ HASHES = {
     "nistp384": "SHA384 SHA512",
     "nistp521": "SHA512",
     "ed25519": "SHA256 SHA512",
-    "brainpool": "SHA256",
+    "brainpool": "SHA256 SHA512",
+    "brainpool384": "SHA384 SHA512",
+    "brainpool512": "SHA512",
     "dsa2048": "SHA256",
 }
 

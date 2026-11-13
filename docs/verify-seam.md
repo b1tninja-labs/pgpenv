@@ -54,12 +54,14 @@ mathematics and the policy table.
 
 ## What is open
 
-- Brainpool curves (`verify.ecdsa.brainpool`): sigwire's ECDSA has the NIST curves, the `cryptography` backend
-  has Brainpool; the status is `unsupported`.
+- Brainpool curves (`verify.ecdsa.brainpool`) are done: sigwire carries brainpoolP256r1, P384r1 and P512r1 (RFC
+  5639 sec. 3) in the `openpgp` and `legacy` policies, and GnuPG 2.4.9 signatures on all three verify.
 - RSA with SHA3-256 and SHA3-512 (`verify.rsa.sha3`): RFC 9580 sec. 9.5 Table 24 gives the DigestInfo prefixes that
   sigwire's `sw.verify.seam.rsa.sha3-pkcs1` row was waiting for; they are in sigwire now, and the only evidence is
   synthetic (OpenSSL signed it).
-- Ed448 (`verify.ed448`): no sample in RFC 9580, and GnuPG 2.4.9 makes none.
+- Ed448 (`verify.ed448`): no sample in RFC 9580, and GnuPG 2.4.9 makes none. The one real signature is
+  libgcrypt's (`tests/test_verification.py::test_ed448_certification_signed_by_libgcrypt_verifies`): real Ed448,
+  assembled into an OpenPGP packet that no other implementation read.
 - Version 6 keys and signatures are covered by the RFC 9580 appendix A vectors only (A.3, A.6, A.7), because
   GnuPG 2.4 makes none; an interop run against Sequoia is the M6 row.
 

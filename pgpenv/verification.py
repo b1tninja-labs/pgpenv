@@ -29,8 +29,9 @@ itself, because a stream of signatures must not stop at one bad one (sec. 5.2.5)
     signature with problems, a version that does not belong with the key (sec. 10.3.2.2, Table 27), a
     hash too short for the algorithm, an impossible key;
 ``unsupported``
-    an algorithm, curve or hash this installation cannot compute (Brainpool curves, RIPEMD-160 without
-    OpenSSL's legacy provider, SHA-3 under PKCS #1 v1.5, an unknown algorithm number);
+    an algorithm, curve or hash this installation cannot compute (a curve OID outside RFC 9580
+    Table 19, RIPEMD-160 without OpenSSL's legacy provider, SHA-3 under PKCS #1 v1.5, an unknown
+    algorithm number);
 ``refused``
     well formed and supported, but the policy forbids it (MD5, SHA-1 and RIPEMD-160 signatures, RSA
     under 2048 bits, DSA: sec. 9.5, 12.4, 12.5);

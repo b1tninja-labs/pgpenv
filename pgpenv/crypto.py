@@ -19,7 +19,8 @@ strings, a digest) and returns True or False. sigwire's refusals become pgpenv's
 the left 16 bits, who the issuer is) are :mod:`pgpenv.verification`'s, not this module's.
 
 The ``openpgp`` policy is sigwire's profile for RFC 9580 sec. 9.5, 12.4 and 12.5: RSA of at least
-2048 bits with a SHA-2 or SHA-3 hash, ECDSA on the NIST curves, Ed25519 and Ed448, and no DSA.
+2048 bits with a SHA-2 or SHA-3 hash, ECDSA on the NIST and Brainpool curves (RFC 9580 sec. 9.2),
+Ed25519 and Ed448, and no DSA.
 ``legacy`` is sigwire's profile for historical verification: 1024-bit RSA, SHA-1, DSA.
 """
 
@@ -95,7 +96,7 @@ def dsa(
 def ecdsa(
     curve: str, qx: int, qy: int, digest: bytes, r: int, s: int, hash_name: str, policy_: Any
 ) -> bool:
-    """ECDSA over a digest on ``P-256``, ``P-384`` or ``P-521`` (sec. 5.2.3.2)."""
+    """ECDSA over a digest on a NIST curve or ``brainpoolP256r1``, ``P384r1``, ``P512r1`` (sec. 5.2.3.2)."""
     from sigwire.verify import ecdsa as backend
 
     return _translated(

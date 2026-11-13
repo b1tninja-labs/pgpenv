@@ -5,6 +5,7 @@
 | RFC 9580 | Proposed Standard | 2024-07 | 2026-11-05 |
 | RFC 4880 | Obsolete | 2007-11 | 2026-11-05 |
 | RFC 9980 | Proposed Standard | 2026-06 | 2026-11-05 |
+| RFC 5639 | Informational (current) | 2010-03 | 2026-11-13 |
 
 Citation rules, in the order they most often get broken:
 
@@ -34,6 +35,7 @@ Read through rfclib on 2026-11-12 (RFC 9580 is current, Proposed Standard, 7 ver
 | 13.13 hashed versus unhashed subpackets | via 5.2.3.6 and 5.2.5 | `Signature.issuer_area` |
 | 5.2.3.1 to 5.2.3.6, 5.2.4 (again, for verification), 9.5 Tables 23 and 24, 10.3.2.2 Table 27, 12.4, 12.5, 12.7 | yes, 2026-11-13 | `verification` (digest-size MUSTs, version pairing, policy, EdDSA over the digest) |
 | Appendix A.1, A.2, A.3, A.3.1, A.6, A.7 | yes | `tests/vectors.py` |
+| 5.2.1.8, 5.2.1.11, 5.2.1.12, 5.2.1.13, 5.2.3.10, 5.2.3.13, 5.2.3.18, 5.2.3.29 (Table 9), 5.2.3.31 (Table 10), 9.2 | yes, 2026-11-13 | `validity.assess` (binding, expiry, revocation, User ID certification) |
 
 Not read yet, so not implemented: 5.1, 5.3, 5.4, 5.6 to 5.9, 5.13 and 5.14 (message packets), 10.2 to 10.4, 11 and 12 (ECDH and algorithm notes), 13.1 to 13.12, appendix A.4, A.5 and A.8 to A.12, and all of RFC 9980.
 
@@ -67,3 +69,16 @@ Body outside the RFC series: GnuPG 2.4.9 (libgcrypt 1.12.2), run in WSL archlinu
   `verification` relies on.
 - **Encoding repair.** The committed file held two raw 0xA7 bytes (a section sign saved as Latin-1), which is not
   valid UTF-8; this change writes them as UTF-8.
+
+## Findings from the M5 and Brainpool pass (2026-11-13)
+
+- **RFC 5639** (Informational, current, 6 verified errata) supplies the Brainpool domain parameters sigwire carries;
+  the errata are editorial or concern appendix A (the seed-generation steps and p_320) and change no number used.
+  The curves have cofactor 1, so a point on the curve is a full public key.
+- **Sec. 5.2.1.8 says a signing subkey's binding MUST carry an embedded 0x19**, and `pgpenv.validity` requires a
+  *verified* one, not only a present one (`inventory` merely reports it).
+- **Sec. 5.2.3.31 does not say what code 0 or a missing Reason means**; it names the consequence only for compromise
+  (all signatures suspect) and for superseded and retired (old signatures stay valid). `validity` treats the unlisted
+  cases as hard, a decision recorded in the row `cert.revoked`.
+- **No tie rule** exists between a User ID certification and its revocation made in the same second; `validity`
+  lets the revocation win.

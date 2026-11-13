@@ -23,6 +23,10 @@ The format follows Keep a Changelog, and this project adheres to Semantic Versio
   result with a status and the facts checked, the `pgpenv.crypto` seam onto `sigwire[verify]`, and
   `signature.verify()` as its entry point. Version 3 signatures over keys now have a hash stream
   (`sig.v3_key_recipe`). Checked against RFC 9580 appendix A.2, A.3, A.6 and A.7 and against GnuPG 2.4.9.
+- Brainpool ECDSA (brainpoolP256r1, P384r1, P512r1) now verifies, through sigwire's curve table; checked against
+  GnuPG 2.4.9 signatures on all three. A real Ed448 signature (libgcrypt's) is verified in an OpenPGP frame.
+- M5: `pgpenv.validity.assess`: binding, expiry, revocation and User ID certification read from *verified*
+  self-signatures only, at a stated time (`cert.binding`, `cert.expiry`, `cert.revoked`, `cert.userid_selfsig`).
 - docs/verify-seam.md: what verification calls and decides.
 
 ### Changed
