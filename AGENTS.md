@@ -2,9 +2,10 @@
 
 OpenPGP packet layer, v4 and v6 keys, encryption and signatures, AEAD encrypted sessions and the armored stream that carries them.
 
-State on 2026-11-12: the read side is built (M1 packets, armor, cleartext; M2 keys, signatures, keyrings,
-the `pkgtrust.keys/1` inventory). Verification, signing and encryption are not: those functions still raise
-`NotImplementedError`. `docs/inventory.md` is the shape; `docs/verify-seam.md` is what M3 will call.
+State on 2026-11-13: the read side is built (M1 packets, armor, cleartext; M2 keys, signatures, keyrings,
+the `pkgtrust.keys/1` inventory) and so is verification (M3: `pgpenv.verification`, through `sigwire[verify]`).
+Signing and encryption are not: those functions still raise `NotImplementedError`. `docs/inventory.md` is the
+shape; `docs/verify-seam.md` is what verification calls and decides.
 
 Primary documents are listed in `docs/rfc-map.md` with statuses and known errata.
 The obligation table in `ROADMAP.md` records what is owed, and `README.md` explains
@@ -67,7 +68,8 @@ rather than merely incomplete.
    dependency, cryptography, with the justification in `docs/strategy.md`. The owner's rule (2026-11-12):
    "we can use the cryptography package for RSA and AES and those cryptographic primitives, but lets roll our
    own for everything else (even asn1 and cert parsing)". So `cryptography` is for primitives only, reached
-   through `pgpenv/crypto.py` (and, for verification, the sibling `sigprim`; see `docs/verify-seam.md`).
+   through `pgpenv/crypto.py`, which reaches the sibling `sigwire[verify]` (see `docs/verify-seam.md`) and imports
+   it lazily so that `import pgpenv` loads neither it nor `cryptography`.
    Packet, armor, cleartext, key, signature, certificate and inventory code is our own, imports only the
    standard library, and `tests/test_inventory.py::test_parse_layer_imports_only_the_standard_library`
    fails if that changes. Adding another runtime dependency needs a paragraph in `docs/strategy.md`.
@@ -77,7 +79,11 @@ rather than merely incomplete.
 6. **Claimed is not valid.** The inventory reports what a file says (`"label": "claimed"`). Never add a
    field, a word or a return value that implies a signature was checked unless a verification ran; the
    checked facts belong to M3 and M5 and get their own fields.
-7. **Hostile input is ordinary input.** Every parse path takes `limits.Limits` and raises a `PgpError`
+7. **A verification answer is a status with the facts checked.** `valid` means a good signature by the given key over
+   exactly the data given; never add a field or word that implies the key was valid, unexpired, unrevoked or trusted
+   (the M5 rows). Refusals for what the signature or key does to itself are statuses, not exceptions (RFC 9580
+   sec. 5.2.5); only misuse raises.
+8. **Hostile input is ordinary input.** Every parse path takes `limits.Limits` and raises a `PgpError`
    subclass, never IndexError or struct.error; a malformed packet inside a keyring rejects that certificate
    and the walk resumes. New parsers get a case in `tests/test_hostile.py`.
 

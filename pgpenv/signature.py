@@ -1,8 +1,9 @@
 """signature packets and the hashing rules that bind them (RFC 9580).
 
 This module *reads* signature packets and builds the byte string a verifier hashes. It does not
-check a signature: ``verify`` is the M3 row and will call the verify-only primitives project
-``sigprim`` (see docs/verify-seam.md), because no cryptographic primitive belongs in a parser.
+check a signature: no cryptographic primitive belongs in a parser. ``verify`` here is a thin entry
+point to :mod:`pgpenv.verification`, which hashes the stream and calls the verify-only primitives of
+``sigwire[verify]`` through :mod:`pgpenv.crypto` (see docs/verify-seam.md).
 
 :func:`parse_signature` decodes version 3, 4 and 6 packets (sec. 5.2.2, 5.2.3), splits the
 hashed from the unhashed subpacket area, and decodes the subpackets this project understands.
@@ -31,8 +32,9 @@ if TYPE_CHECKING:
     from typing import Any
 
     Key = Any  # anything with ``version`` and ``body`` (a pgpenv.key.PublicKey)
-    Policy = Any  # placeholder: the algorithm policy object is an M5 question (ROADMAP.md)
-    Verification = Any  # placeholder: the verification result type arrives with M3
+    from .verification import Verification
+
+    Policy = Any  # "openpgp", "legacy" or a sigwire policy object (pgpenv.crypto.policy)
 
 __all__ = [
     "Notation",
@@ -509,9 +511,12 @@ def hash_stream(
     ``key`` and ``subkey`` for 0x18, 0x19 and 0x28; ``key`` and ``user_id`` (or ``attribute``) for
     0x10 to 0x13 and 0x30; ``confirmed`` for 0x50. ``key`` and ``subkey`` are
     :class:`pgpenv.key.PublicKey` values (anything with ``version`` and ``body``). A version 6
-    signature hashes its salt first. Raises :class:`SignatureError` for a type with no recipe in
-    the RFC (0x40, 0xFF) and ``NotImplementedError`` for version 3 signatures over keys, whose
-    recipe this project has not read.
+    signature hashes its salt first. A version 3 signature over a key hashes the key exactly as a
+    version 4 one does (0x99, a 2-octet length, the key packet body: sec. 5.2.4 says the key is
+    hashed that way for every signature made over a key and distinguishes versions only for the
+    User ID, which a version 3 certification hashes without header, marker or length, and for the
+    trailer, five octets). Raises :class:`SignatureError` for a type with no recipe in the RFC
+    (0x40, 0xFF) and for a missing argument.
     """
     t = sig.sig_type
     prefix = sig.salt if sig.salt is not None else b""
@@ -534,11 +539,6 @@ def hash_stream(
             + confirmed.body[confirmed.unhashed_end :]
         )
         return prefix + b"\x88" + len(body).to_bytes(4, "big") + body + hash_trailer(sig)
-    if sig.version == 3:
-        raise NotImplementedError(
-            "hash_stream() for a version 3 signature over a key: that recipe is not in the "
-            "RFC 9580 text this project has read"
-        )
     if key is None:
         raise SignatureError(f"signature type {t:#04x} is over a key; pass key=")
     parts = [prefix, key_hash_bytes(key)]
@@ -553,7 +553,12 @@ def hash_stream(
             marker, blob = b"\xd1", attribute
         else:
             raise SignatureError("a certification is over exactly one of user_id and attribute")
-        parts.append(marker + len(blob).to_bytes(4, "big") + blob)
+        if sig.version == 3:
+            # sec. 5.2.4: a version 3 certification hashes the contents of the User ID or User
+            # Attribute packet without the packet header: no 0xB4 or 0xD1 and no length
+            parts.append(blob)
+        else:
+            parts.append(marker + len(blob).to_bytes(4, "big") + blob)
     elif t not in (0x1F, 0x20):
         raise SignatureError(f"unknown signature type {t:#04x} has no hashing recipe")
     parts.append(hash_trailer(sig))
@@ -570,11 +575,18 @@ def sign(data: bytes, key: Key, policy: Policy) -> Signature:
     raise NotImplementedError("sign() is not implemented: RFC 9580 sec. 5.2")
 
 
-def verify(data: bytes, sig: Signature, key: Key) -> Verification:
-    """Pending behaviour defined by RFC 9580 sec. 5.2.
+def verify(data: bytes, sig: Signature, key: Key, policy: Policy = "openpgp") -> Verification:
+    """Check a document signature (types 0x00, 0x01, 0x02) against ``key``, RFC 9580 sec. 5.2.
 
-    Not implemented yet. See the ``signature.verify()`` row in ROADMAP.md and
-    docs/verify-seam.md; this stub raises on purpose so nothing downstream mistakes it for
-    working code. Use :func:`hash_stream` for the bytes a verifier hashes.
+    ``key`` is the public key that made the signature, a certificate (its primary key and subkeys
+    are tried, chosen by the issuer subpackets) or a list of either. The answer is a
+    :class:`pgpenv.verification.Verification`: a status (``valid``, ``invalid``, ``malformed``,
+    ``unsupported``, ``refused`` or ``no-key``) and the facts that were checked. It says nothing about
+    the key's validity, expiry, revocation or trust. ``policy`` is ``"openpgp"`` (RFC 9580 sec. 9.5,
+    12.4, 12.5) or ``"legacy"``. This is a thin entry point; the key, cleartext and certificate
+    checks, and the full account of what a result means, are in :mod:`pgpenv.verification`, which is
+    loaded on the first call so that importing this package never imports ``cryptography``.
     """
-    raise NotImplementedError("verify() is not implemented: RFC 9580 sec. 5.2")
+    from .verification import verify_document
+
+    return verify_document(data, sig, key, policy=policy)

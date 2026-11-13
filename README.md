@@ -5,11 +5,13 @@
      the badges stay commented out until the tag exists.
 -->
 
-**Pre-alpha: the read side works, verification and encryption do not.** pgpenv parses OpenPGP
+**Pre-alpha: reading and signature verification work; signing and encryption do not.** pgpenv parses OpenPGP
 (RFC 9580) with the standard library alone: packet framing, ASCII armor, the cleartext signature
 framework, v3, v4 and v6 public keys with computed fingerprints, signature packets with every
-subpacket, keyrings, and an inventory of what a file *claims*. Nothing is verified yet:
-`signature.sign`, `signature.verify`, `session.encrypt` and `session.decrypt` raise
+subpacket, keyrings, and an inventory of what a file *claims*. Signatures can be verified through the
+sibling `sigwire[verify]` seam (`pgpenv.verification`: documents, cleartext messages, certifications, subkey
+bindings and their back signatures, v3, v4 and v6), and the result is a status with the facts that were
+checked, never a bare boolean. `signature.sign`, `session.encrypt` and `session.decrypt` raise
 `NotImplementedError`, and the test suite records that rather than hiding it. Read
 [ROADMAP.md](ROADMAP.md) before depending on any of it.
 
@@ -82,7 +84,8 @@ document, which is the honest grain size for a plan. See [docs/rfc-map.md](docs/
 | `limits` | bounds on packet size, nesting depth and key count on every parse path |
 | `session` | symmetric and public key session key handling, AEAD granularity (RFC 9580): not implemented |
 | `message` | literals, compression and the nesting that makes MIME work safe: not implemented |
-| `crypto` | the seam onto cryptography for primitives, and onto `sigprim` for verification: not implemented |
+| `crypto` | the seam onto `sigwire[verify]` (RSA, ECDSA, EdDSA, DSA primitives over `cryptography`), imported lazily |
+| `verification` | `verify_document`, `verify_cleartext`, `verify_certification`, `verify_binding`, `verify_back_signatures`, `check_self_signatures` (RFC 9580 sec. 5.2.4, 7) |
 
 ## What it does not do
 
@@ -100,13 +103,13 @@ document, which is the honest grain size for a plan. See [docs/rfc-map.md](docs/
 The owner's rule (2026-11-12): "we can use the cryptography package for RSA and AES and those
 cryptographic primitives, but lets roll our own for everything else (even asn1 and cert parsing)".
 
-So `cryptography` stays the one declared runtime dependency, with a floor and no ceiling (the application
-that installs this library resolves the final set), and it is used for primitives only. Everything this
-package reads, packet framing, armor, key, signature and subpacket parsing, fingerprints (`hashlib`) and the
-inventory, is its own code and imports nothing outside the standard library; a test fails if a parse
-module imports anything else. Signature verification will go through `sigprim`, a sibling verify-only
-library for the mathematics (see [docs/verify-seam.md](docs/verify-seam.md)), with `cryptography` behind
-`pgpenv/crypto.py` for RSA and AES where it is the right tool. Nothing imports it yet.
+So the one declared runtime dependency is the sibling `sigwire[verify]`, a strict verify-only seam over
+`cryptography` (see [docs/verify-seam.md](docs/verify-seam.md)); until it is published it is a sibling
+checkout that pytest and mypy find by path, as ctspy's does. Everything this package reads, packet framing,
+armor, key, signature and subpacket parsing, fingerprints (`hashlib`) and the inventory, is its own code
+and imports nothing outside the standard library; a test fails if a parse module imports anything else.
+Only `pgpenv/crypto.py` reaches sigwire, and only when a signature is verified: `import pgpenv` loads
+neither sigwire nor `cryptography`.
 
 ## Install
 

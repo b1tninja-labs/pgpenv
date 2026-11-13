@@ -13,10 +13,14 @@ __all__ = [
     "CleartextError",
     "KeyPacketError",
     "LimitError",
+    "MalformedKeyMaterialError",
     "PacketError",
     "PgpError",
+    "PolicyRefusalError",
     "SignatureError",
     "TruncatedError",
+    "UnsupportedAlgorithmError",
+    "VerificationError",
 ]
 
 
@@ -50,3 +54,24 @@ class SignatureError(PgpError):
 
 class LimitError(PgpError):
     """A bound from :class:`pgpenv.limits.Limits` was exceeded, so the input was refused."""
+
+
+class VerificationError(PgpError):
+    """The seam to the verifier (:mod:`pgpenv.crypto`) refused to answer; see the subclasses.
+
+    :mod:`pgpenv.verification` turns each into a :class:`~pgpenv.verification.Verification` with a
+    status of ``malformed``, ``unsupported`` or ``refused``, so a stream of signatures is never halted
+    by one of them (RFC 9580 sec. 5.2.5). It reaches a caller only through :mod:`pgpenv.crypto`.
+    """
+
+
+class MalformedKeyMaterialError(VerificationError):
+    """The key, or a digest, cannot be what its packet says (an even modulus, a point off the curve)."""
+
+
+class UnsupportedAlgorithmError(VerificationError):
+    """The algorithm, curve or hash is not implemented here, or not available to this interpreter."""
+
+
+class PolicyRefusalError(VerificationError):
+    """The input is well formed and supported but the policy in force forbids it (RFC 9580 sec. 9.5, 12.4, 12.5)."""

@@ -4,7 +4,7 @@
 OpenPGP file *claims*. They are the read-only half of OpenPGP: no signature is verified, so nothing is ever
 called valid, and a forged self-signature produces the same record as a real one. The record is the shape
 proposed in the pkgtrust signature research (2026-11-12, section 2). Verification is a second pass
-(ROADMAP.md M3, through `sigprim`) whose results will be separate fields with their own labels.
+(ROADMAP.md M3, through `sigwire[verify]`; done 2026-11-13, see docs/verify-seam.md) whose results will be separate fields with their own labels.
 
 What it is made from: fingerprints, key ids, sizes and curves are computed from the key packets by pgpenv
 (RFC 9580 sec. 5.5.4), never copied from a file. Everything else is read from packets and subpackets as

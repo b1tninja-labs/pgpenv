@@ -33,11 +33,15 @@ classifiers = [
 # Empty unless a module cannot be honest without it. Every entry needs a sentence in
 # README.md explaining why the zero-dependency rule was broken for it.
 #
-# cryptography is for primitives only (RSA, AES and the like), per the owner's rule of 2026-11-12:
-# everything else, including packet, armor, key, subpacket and inventory parsing, is this
-# package's own code. Only pgpenv/crypto.py may import it, and it does not yet; the parse layer
-# runs on the standard library alone (tests/test_inventory.py enforces both).
-dependencies = ["cryptography>50.0.2"]
+# `sigwire[verify]` is the one: signature verification goes through the portfolio's strict seam over
+# `cryptography` (docs/verify-seam.md), per the owner's rule of 2026-11-12 that `cryptography` serves
+# for primitives only and everything else, including packet, armor, key, subpacket and inventory
+# parsing, is this package's own code. Only pgpenv/crypto.py imports it, and only when a signature is
+# verified; the parse layer runs on the standard library alone (tests/test_inventory.py enforces
+# both). `cryptography` itself comes in through sigwire; the ciphers of M4 will declare it here when
+# they land. sigwire is a sibling checkout until it is published; pytest and mypy find it by the paths
+# below, the way ctspy does.
+dependencies = ["sigwire[verify]"]
 
 [project.optional-dependencies]
 dev = [
@@ -73,7 +77,7 @@ include = ["/pgpenv/", "/tests/", "/docs/", "/README.md", "/ROADMAP.md", "/CHANG
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "../sigwire"]
 asyncio_mode = "auto"
 addopts = "-ra"
 
@@ -121,3 +125,4 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
 ignore_missing_imports = true
+mypy_path = "../sigwire"

@@ -51,7 +51,8 @@ not enough for the arithmetic of RSA, DSA, ECDSA and EdDSA verification or for A
 ciphers of session encryption, and writing those is a worse project than this one. The owner's rule of
 2026-11-12: "we can use the cryptography package for RSA and AES and those cryptographic primitives, but lets
 roll our own for everything else (even asn1 and cert parsing)". So `cryptography` stays the one declared
-runtime dependency, kept at a floor with no ceiling, reached only through `pgpenv/crypto.py` and the
-sibling `sigprim` seam (docs/verify-seam.md), and never from the parse layer; a test fails if a parse
-module imports it.
+runtime dependency, kept at a floor with no ceiling, reached only through `pgpenv/crypto.py`, which
+in turn reaches the sibling `sigwire[verify]` seam (docs/verify-seam.md; `sigprim` was merged into it), and
+never from the parse layer; a test fails if a parse module imports it. `pyproject.toml` declares
+`sigwire[verify]`, which brings `cryptography` in; the ciphers of M4 will declare it directly when they land.
 

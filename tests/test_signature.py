@@ -263,8 +263,13 @@ def test_v3_signature_is_read():
     assert sig.left16 == b"\xab\xcd"
     assert signature.hash_trailer(sig) == b"\x00" + (1_000_000_000).to_bytes(4, "big")
     assert hashlib.sha1(signature.hash_stream(sig, document=b"x")) is not None  # noqa: S324
-    with pytest.raises(NotImplementedError):
-        signature.hash_stream(sig.__class__(**{**_as_dict(sig), "sig_type": 0x13}), key=object())
+    certification = sig.__class__(**{**_as_dict(sig), "sig_type": 0x13})
+    v3_key = type("V3Key", (), {"version": 3, "body": b"\x03KEYBODY"})()
+    # sec. 5.2.4: the key as for every signature over a key, the User ID without header, marker or
+    # length for a version 3 certification, then the five-octet trailer (type and time as parsed), no salt
+    assert signature.hash_stream(certification, key=v3_key, user_id=b"uid") == (
+        b"\x99\x00\x08\x03KEYBODY" + b"uid" + b"\x00" + (1_000_000_000).to_bytes(4, "big")
+    )
     with pytest.raises(SignatureError):
         parse_signature(body[:10])
     with pytest.raises(SignatureError):
@@ -316,8 +321,6 @@ def test_third_party_confirmation_hashes_the_target_without_its_unhashed_area():
         signature.hash_stream(confirm)
 
 
-def test_sign_and_verify_stay_loud():
-    with pytest.raises(NotImplementedError):
-        signature.verify(b"", None, None)
+def test_sign_stays_loud():
     with pytest.raises(NotImplementedError):
         signature.sign(b"", None, None)

@@ -18,21 +18,27 @@ The format follows Keep a Changelog, and this project adheres to Semantic Versio
   file claims, never what is valid (docs/inventory.md).
 - Tests: RFC 9580 appendix A vectors, synthesised packets, GnuPG-generated fixtures with a GnuPG
   cross-check, and a hostile corpus. Coverage floor raised from 45 to 85.
-- docs/verify-seam.md: the `sigprim` calls `signature.verify()` will make.
+- M3 verification: `pgpenv.verification` (`verify_document`, `verify_cleartext`, `verify_certification`,
+  `verify_direct_key`, `verify_binding`, `verify_back_signatures`, `check_self_signatures`), a `Verification`
+  result with a status and the facts checked, the `pgpenv.crypto` seam onto `sigwire[verify]`, and
+  `signature.verify()` as its entry point. Version 3 signatures over keys now have a hash stream
+  (`sig.v3_key_recipe`). Checked against RFC 9580 appendix A.2, A.3, A.6 and A.7 and against GnuPG 2.4.9.
+- docs/verify-seam.md: what verification calls and decides.
 
 ### Changed
 
 - `cryptography` stays a declared dependency, but the parse-and-inventory layer imports nothing outside the
   standard library and a test enforces it. The owner's rule of 2026-11-12 allows `cryptography` for
-  primitives such as RSA and AES; everything else is this package's own code. Verification will use
-  `sigprim`.
+  primitives such as RSA and AES; everything else is this package's own code. Verification uses
+  `sigwire[verify]` (`sigprim` was merged into it and the name retired), declared as the one dependency;
+  `pyproject.toml` no longer declares `cryptography` itself, which comes in through sigwire.
 - README and ROADMAP: the CRC-24 promise is corrected (RFC 9580 sec. 6.1 says a reader MUST NOT reject on
   it) and the non-goal "pre-standard wire formats" is narrowed so that reading Legacy headers and v3 keys,
   which RFC 9580 still defines, stays in scope.
 
 ### Still raising `NotImplementedError`
 
-`signature.sign`, `signature.verify`, `session.encrypt`, `session.decrypt`.
+`signature.sign`, `session.encrypt`, `session.decrypt`.
 
 ## 0.0.0 - 2026-11-05
 
