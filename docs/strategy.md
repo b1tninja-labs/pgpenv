@@ -42,3 +42,16 @@ One string everywhere: the distribution, the import and the console script. A na
 means one thing in the installer, in `import` and on `PATH` is the only arrangement that
 cannot surprise anyone, and it is also why this project does not sit one edit away from a
 project that already exists.
+
+## Dependencies
+
+The standard library is enough for everything this package parses: packet framing, armor, CRC-24, key and
+signature packets, fingerprints (`hashlib` provides MD5, SHA-1, SHA-256 and SHA-512) and the inventory. It is
+not enough for the arithmetic of RSA, DSA, ECDSA and EdDSA verification or for AES, OCB and the other
+ciphers of session encryption, and writing those is a worse project than this one. The owner's rule of
+2026-11-12: "we can use the cryptography package for RSA and AES and those cryptographic primitives, but lets
+roll our own for everything else (even asn1 and cert parsing)". So `cryptography` stays the one declared
+runtime dependency, kept at a floor with no ceiling, reached only through `pgpenv/crypto.py` and the
+sibling `sigprim` seam (docs/verify-seam.md), and never from the parse layer; a test fails if a parse
+module imports it.
+

@@ -5,10 +5,20 @@
      the badges stay commented out until the tag exists.
 -->
 
-**Pre-alpha shell.** The package surface, the obligation matrix and the CI gates exist.
-No protocol behaviour is implemented: every public function raises `NotImplementedError`,
-and the test suite records that rather than hiding it. Read
+**Pre-alpha: the read side works, verification and encryption do not.** pgpenv parses OpenPGP
+(RFC 9580) with the standard library alone: packet framing, ASCII armor, the cleartext signature
+framework, v3, v4 and v6 public keys with computed fingerprints, signature packets with every
+subpacket, keyrings, and an inventory of what a file *claims*. Nothing is verified yet:
+`signature.sign`, `signature.verify`, `session.encrypt` and `session.decrypt` raise
+`NotImplementedError`, and the test suite records that rather than hiding it. Read
 [ROADMAP.md](ROADMAP.md) before depending on any of it.
+
+```bash
+python -m pgpenv inventory keyring.gpg --json     # fingerprints, algorithms, user ids, certifications, revocations
+```
+
+The output is the `pkgtrust.keys/1` record, documented in [docs/inventory.md](docs/inventory.md). Every
+field is claimed, never valid: a forged self-signature produces the same record as a real one.
 
 pgpenv -- OpenPGP messages and keys to RFC 9580
 
@@ -28,11 +38,16 @@ which is why the table below carries dates instead of adjectives.
 
 What this project intends to add:
 
-- version 6 keys and packets, plus a v4 reader for material that already exists
+- version 6 keys and packets, plus a v4 reader for material that already exists (done for reading);
+  the v4 reader is the headline, because distribution keyrings are v4 and v3 and Legacy-format packets are
+  still read (RFC 9580 sec. 4.2, 5.5.2 say a consumer MAY)
 - AEAD encrypted sessions with the granularity rules the specification sets
 - signature creation and verification that reports what it checked and what it refused
 - key certifications and binding checks handled so the web of trust is not silently trusted
-- armored streams with CRC-24 and line discipline that survive truncated input
+- armored streams with strict line discipline that survive truncated input. The CRC-24 is advisory, not a
+  gate: RFC 9580 sec. 6.1 says an implementation MUST NOT reject an object because the checksum is present,
+  missing, malformed or wrong, and that a producer SHOULD NOT generate it. pgpenv reports the outcome
+  (`absent`, `ok`, `mismatch`, `malformed`) and returns the data either way
 
 ## Specification spine
 
@@ -57,28 +72,42 @@ document, which is the honest grain size for a plan. See [docs/rfc-map.md](docs/
 | Module | Responsibility |
 |---|---|
 | `packet` | packet framing, tags, old and new format headers (RFC 9580) |
-| `key` | public keys, v4 and v6 fingerprints, subkeys (RFC 9580) |
-| `signature` | signature packets and the hashing rules that bind them (RFC 9580) |
-| `session` | symmetric and public key session key handling, AEAD granularity (RFC 9580) |
-| `message` | literals, compression and the nesting that makes MIME work safe |
-| `armor` | radix64 with CRC-24 headers and trailers (RFC 9580) |
-| `crypto` | the seam onto cryptography, pinned to an allowed algorithm list |
+| `key` | public keys, v3, v4 and v6 fingerprints, key ids, subkeys (RFC 9580) |
+| `signature` | signature packets, subpackets and the exact hashed data that binds them (RFC 9580) |
+| `certificate` | transferable public keys and keyrings, binary or armored (RFC 9580 sec. 10.1) |
+| `inventory` | the `pkgtrust.keys/1` record of what a file claims (docs/inventory.md) |
+| `armor` | radix64 with an advisory CRC-24, headers and tails (RFC 9580 sec. 6) |
+| `cleartext` | the cleartext signature framework and the exact signed text (RFC 9580 sec. 7) |
+| `registry`, `wire`, `errors` | algorithm and type tables, MPIs, the exception family |
 | `limits` | bounds on packet size, nesting depth and key count on every parse path |
+| `session` | symmetric and public key session key handling, AEAD granularity (RFC 9580): not implemented |
+| `message` | literals, compression and the nesting that makes MIME work safe: not implemented |
+| `crypto` | the seam onto cryptography for primitives, and onto `sigprim` for verification: not implemented |
 
 ## What it does not do
 
 - an agent, daemon or keyring service
 - a mail user agent or any MIME handling
-- compatibility with pre-standard PGP wire formats
+- writing Legacy-format packet headers, v2 or v3 keys or v3 signatures, or treating MD5 as sound. Reading
+  Legacy headers and v3 keys is in scope: RFC 9580 sec. 4.2 and 5.5.2 still define them, and an inventory
+  that skipped them would drop real keys without saying so
 - a compliance claim: interoperability evidence ships with the release, not before it
 
 
 
-## Why this project has a runtime dependency
+## Dependencies, and why there is exactly one
 
-OpenPGP without an AEAD, HKDF and EdDSA backend means writing those primitives, which is a worse project than this one. One pinned dependency with no ceiling.
+The owner's rule (2026-11-12): "we can use the cryptography package for RSA and AES and those
+cryptographic primitives, but lets roll our own for everything else (even asn1 and cert parsing)".
 
-Declared as a floor with no ceiling: the application that installs this library resolves the final set, and a ceiling inside a library guarantees a conflict the first time something else needs a newer line.
+So `cryptography` stays the one declared runtime dependency, with a floor and no ceiling (the application
+that installs this library resolves the final set), and it is used for primitives only. Everything this
+package reads, packet framing, armor, key, signature and subpacket parsing, fingerprints (`hashlib`) and the
+inventory, is its own code and imports nothing outside the standard library; a test fails if a parse
+module imports anything else. Signature verification will go through `sigprim`, a sibling verify-only
+library for the mathematics (see [docs/verify-seam.md](docs/verify-seam.md)), with `cryptography` behind
+`pgpenv/crypto.py` for RSA and AES where it is the right tool. Nothing imports it yet.
+
 ## Install
 
 ```bash

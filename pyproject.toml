@@ -32,6 +32,11 @@ classifiers = [
 ]
 # Empty unless a module cannot be honest without it. Every entry needs a sentence in
 # README.md explaining why the zero-dependency rule was broken for it.
+#
+# cryptography is for primitives only (RSA, AES and the like), per the owner's rule of 2026-11-12:
+# everything else, including packet, armor, key, subpacket and inventory parsing, is this
+# package's own code. Only pgpenv/crypto.py may import it, and it does not yet; the parse layer
+# runs on the standard library alone (tests/test_inventory.py enforces both).
 dependencies = ["cryptography>50.0.2"]
 
 [project.optional-dependencies]
@@ -81,7 +86,7 @@ source = ["pgpenv"]
 # coverage for the line that raises. Raise this in the commit that implements a
 # milestone, never in a commit that only adds tests, so the number keeps meaning
 # "this behaviour is exercised" rather than "this file was imported".
-fail_under = 45
+fail_under = 85
 show_missing = true
 exclude_lines = [
   "if __name__ == .__main__.:",

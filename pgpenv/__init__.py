@@ -6,8 +6,26 @@ new key material handling.
 
 from __future__ import annotations
 
-from . import apps, armor, cli, crypto, key, limits, message, packet, session, signature
+from . import (
+    apps,
+    armor,
+    certificate,
+    cleartext,
+    cli,
+    crypto,
+    errors,
+    inventory,
+    key,
+    limits,
+    message,
+    packet,
+    registry,
+    session,
+    signature,
+    wire,
+)
 from .armor import decode, encode
+from .inventory import inventory_report
 from .key import fingerprint, load_key
 from .limits import check
 from .packet import encode_packet, iter_packets
@@ -20,7 +38,9 @@ __all__ = [
     "__version__",
     "apps",
     "armor",
+    "certificate",
     "check",
+    "cleartext",
     "cli",
     "crypto",
     "decode",
@@ -28,15 +48,20 @@ __all__ = [
     "encode",
     "encode_packet",
     "encrypt",
+    "errors",
     "fingerprint",
+    "inventory",
+    "inventory_report",
     "iter_packets",
     "key",
     "limits",
     "load_key",
     "message",
     "packet",
+    "registry",
     "session",
     "sign",
     "signature",
     "verify",
+    "wire",
 ]

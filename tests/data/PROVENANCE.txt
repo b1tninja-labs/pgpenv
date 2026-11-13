@@ -1,0 +1,18 @@
+Fixtures in tests/data/gnupg
+
+Generated on 2026-11-12 by tools/gen_gpg_fixtures.sh with GnuPG 2.4.9 (libgcrypt 1.12.2) in WSL archlinux, using a
+fixed fake system time of 2024-03-01T12:00:00Z. Every key is a throwaway created for this repository; only public
+parts were exported and the secret keys were deleted with the temporary GNUPGHOME. The keys are random, so
+regenerating changes every fingerprint; the tests read their expected values from GnuPG at run time, never from
+a stored list.
+
+Contents: rsa2048, rsa4096, ed25519 (two user ids, an extra signing subkey whose binding carries a back
+signature, that subkey then revoked, and a certification by rsa2048), nistp256 (revoked primary key),
+nistp384, nistp521, brainpool (brainpoolP256r1), dsaelg (DSA 2048 and Elgamal 2048); ring.pgp and ring.asc
+are four of them concatenated; nistp256-revcert.asc is the lone revocation certificate; msg.txt with a
+detached binary signature (.sig), a detached armored signature (.asc) and a cleartext signature
+(.clearsigned.asc), all made by the ed25519 key.
+
+Real third-party keyrings (for example distribution release keys) were deliberately not copied in: the
+licence of published public key files was not established, so the corpus is synthesised or self-generated
+instead. The RFC 9580 appendix A samples in tests/vectors.py are published by the RFC for use as test vectors.

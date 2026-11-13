@@ -2,6 +2,10 @@
 
 OpenPGP packet layer, v4 and v6 keys, encryption and signatures, AEAD encrypted sessions and the armored stream that carries them.
 
+State on 2026-11-12: the read side is built (M1 packets, armor, cleartext; M2 keys, signatures, keyrings,
+the `pkgtrust.keys/1` inventory). Verification, signing and encryption are not: those functions still raise
+`NotImplementedError`. `docs/inventory.md` is the shape; `docs/verify-seam.md` is what M3 will call.
+
 Primary documents are listed in `docs/rfc-map.md` with statuses and known errata.
 The obligation table in `ROADMAP.md` records what is owed, and `README.md` explains
 what the library is for. Read those three before changing anything.
@@ -30,6 +34,11 @@ to work on.
     python -m ruff check .
     python -m ruff format --check .
     python -m mypy pgpenv tests
+    python -m pgpenv inventory FILE --json
+
+Run them with `PYTHONDONTWRITEBYTECODE=1`. The GnuPG cross-check in `tests/test_inventory.py` runs
+`wsl.exe -d archlinux gpg --with-colons --show-keys` and skips when it is unavailable; fixtures are
+regenerated with `tools/gen_gpg_fixtures.sh` (see `tests/data/PROVENANCE.txt`).
 
 The first line installs the dev extras. The six commands after it are the gates,
 and all six must pass before a change is finished. CI runs the same set on Linux
@@ -54,12 +63,23 @@ rather than merely incomplete.
 3. **Normative text is never paraphrased from memory.** Fetch it with `rfclib` and
    cite the section. If the text you fetch does not say what the obligation claims,
    the obligation is wrong: fix the roadmap row and say so in the commit.
-4. **Dependencies.** `pyproject.toml` here declares these runtime dependencies: cryptography 50.0.2. Adding a runtime
-   dependency needs a paragraph of justification in `docs/strategy.md` explaining
-   why the standard library is not enough.
+4. **Dependencies, and the parse layer imports nothing.** `pyproject.toml` here declares one runtime
+   dependency, cryptography, with the justification in `docs/strategy.md`. The owner's rule (2026-11-12):
+   "we can use the cryptography package for RSA and AES and those cryptographic primitives, but lets roll our
+   own for everything else (even asn1 and cert parsing)". So `cryptography` is for primitives only, reached
+   through `pgpenv/crypto.py` (and, for verification, the sibling `sigprim`; see `docs/verify-seam.md`).
+   Packet, armor, cleartext, key, signature, certificate and inventory code is our own, imports only the
+   standard library, and `tests/test_inventory.py::test_parse_layer_imports_only_the_standard_library`
+   fails if that changes. Adding another runtime dependency needs a paragraph in `docs/strategy.md`.
 5. **Scope.** What is deliberately absent is listed under Non-goals in `README.md`.
    An agent that "helpfully" implements a non-goal has expanded the API surface that
    has to be supported forever.
+6. **Claimed is not valid.** The inventory reports what a file says (`"label": "claimed"`). Never add a
+   field, a word or a return value that implies a signature was checked unless a verification ran; the
+   checked facts belong to M3 and M5 and get their own fields.
+7. **Hostile input is ordinary input.** Every parse path takes `limits.Limits` and raises a `PgpError`
+   subclass, never IndexError or struct.error; a malformed packet inside a keyring rejects that certificate
+   and the walk resumes. New parsers get a case in `tests/test_hostile.py`.
 
 ## Read before implementing
 
