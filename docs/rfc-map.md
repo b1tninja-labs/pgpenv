@@ -82,3 +82,26 @@ Body outside the RFC series: GnuPG 2.4.9 (libgcrypt 1.12.2), run in WSL archlinu
   cases as hard, a decision recorded in the row `cert.revoked`.
 - **No tie rule** exists between a User ID certification and its revocation made in the same second; `validity`
   lets the revocation win.
+
+## RFC 9980 (read 2026-11-13, round 8)
+
+rfclib was not connected that day, so the text was read from the RFC Editor corpus mirror at
+`D:/code/rfclibrary/data/mirror/rfc/rfc9980.txt` and RFC 9580 sec. 9.1 and 9.5 from `rfc9580.txt`, with errata and
+status from `rfclib.db`: RFC 9980 is a Proposed Standard of June 2026 that extends RFC 9580. One erratum (eid 9023,
+Reported, sec. 4.2.4: the decryption procedure also needs the ECDH public key) concerns decryption and waits for M4.
+RFC 9580 has 7 verified errata (unchanged) plus two not verified (8449 on sec. 5.11, held; 9218 on sec. 6, reported).
+
+| RFC 9980 section | Read | Used by |
+|---|---|---|
+| 2.1, 11 algorithm ids 30 to 36, sizes | yes | `registry.PK_ALGORITHMS`, `PQ_PUBLIC_KEY_SIZES`, `PQ_SIGNATURE_SIZES` |
+| 3.5, 4.3.2, 5.3.2, 6.2.2 key version binding | yes | `key.parse_public_key` (a problem, not an exception) |
+| 5.3.1, 6.2.1, 9.4 version 6 signatures, digest of at least 256 bits | yes | `signature.parse_signature`, `verification` |
+| 7.2 no MD5, SHA-1 or RIPEMD-160 in a subkey binding | yes | `signature.parse_signature`, `verification.verify_binding` |
+| Appendix A.2 to A.7 | keys and detached signatures | `tests/data/rfc9980` |
+
+Not read, so not implemented: 4.1, 4.2 (the KEM, key combiner), 5.1, 5.2, 6.1 (the signature mathematics), 8, 9.1 to
+9.3, 9.5 to 9.7, 10 and the encrypted-message vectors.
+
+RFC 9580 sec. 9.1 and 9.5 were read again for `pgpenv.policy`: SHA2-256 MUST, SHA2-384 and SHA2-512 SHOULD; Ed25519
+and X25519 MUST, Ed448 and X448 SHOULD; sec. 9.5's last paragraph is `verify.time`. Sec. 5.2.3.21 (and 5.2.3.22) is
+`pgpenv.wot`.

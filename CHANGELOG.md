@@ -6,6 +6,11 @@ The format follows Keep a Changelog, and this project adheres to Semantic Versio
 
 ### Added
 
+- Round 8: `pgpenv.policy` (RFC 9580 sec. 9.1 and 9.5 requirement tables; the `openpgp` policy refuses MD5,
+  SHA-1 and RIPEMD-160 signatures before hashing), `WeakHashTime` (the creation-time rule of sec. 9.5, caller
+  supplied cut-off and custody), `pgpenv.wot` (a Trust Signature as a labelled claim; trust itself is refused),
+  and RFC 9980 algorithm ids 30 to 36 with their sizes, version binding and digest rules, pinned against the
+  RFC's own appendix A keys and signatures (verification of them answers `unsupported`).
 - M1: packet framing for the OpenPGP and Legacy header formats, partial body lengths, every RFC 9580
   packet tag recognised by type with unknown tags preserved (`packet`); ASCII armor with headers and an
   advisory CRC-24 (`armor`); the cleartext signature framework returning the exact signed text

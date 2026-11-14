@@ -4,3 +4,9 @@ Copyright 2026 Justin Capella
 This product includes software developed as part of an RFC-anchored protocol SDK portfolio.
 Specification text referenced by this project is the work of its authors and is cited by
 document number; no normative text is redistributed here beyond short identifiers.
+
+tests/data/rfc9980/ holds test vectors (armored keys and detached signatures) extracted unchanged from the
+appendices of RFC 9980, "Post-Quantum Cryptography in OpenPGP", by tools/extract_rfc9980_vectors.py. They are
+reproduced from the RFC as published by the RFC Editor, Copyright (c) IETF Trust and the persons identified as the
+document authors, under the IETF Trust's Legal Provisions Relating to IETF Documents (BCP 78 and the Trust Legal
+Provisions), which permit code components such as these test vectors to be used under the Revised BSD License.

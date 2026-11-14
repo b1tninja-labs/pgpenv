@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import pathlib
 
 import pytest
 
-from pgpenv import fingerprint, key, load_key
+from pgpenv import armor, fingerprint, key, load_key, registry, signature
 from pgpenv.errors import KeyPacketError, PgpError
 from pgpenv.key import key_id, load_keys, parse_public_key
-from pgpenv.packet import parse_packets
+from pgpenv.packet import iter_packets, parse_packets
+from pgpenv.verification import verify_document
 
 from . import vectors as v
 from .helpers import ed25519_v4_body, fixture, mpi, pkt, rsa_key_body, v4_fingerprint
@@ -208,3 +210,108 @@ def test_secret_packets_are_recognised_without_decoding_secret_material():
 
 def test_module_exports():
     assert key.fingerprint is fingerprint
+
+
+# ---- RFC 9980: post-quantum algorithm ids (algo.rfc9980) ---------------------------------------
+
+
+RFC9980_DIR = pathlib.Path(__file__).resolve().parent / "data" / "rfc9980"
+# appendix, primary algorithm, subkey algorithm, detached signature hash id, key version
+RFC9980_VECTORS = [
+    ("a3", 30, 35, 8),  # ML-DSA-65+Ed25519 with ML-KEM-768+X25519
+    ("a4", 31, 36, 14),
+    ("a5", 32, 35, 8),
+    ("a6", 33, 35, 8),
+    ("a7", 34, 36, 10),
+]
+NAMES = {
+    30: "ML-DSA-65+Ed25519",
+    31: "ML-DSA-87+Ed448",
+    32: "SLH-DSA-SHAKE-128s",
+    33: "SLH-DSA-SHAKE-128f",
+    34: "SLH-DSA-SHAKE-256s",
+    35: "ML-KEM-768+X25519",
+    36: "ML-KEM-1024+X448",
+}
+
+
+def _vector_signature(name: str):
+    data = armor.decode((RFC9980_DIR / f"{name}-detached.asc").read_bytes())
+    return next(signature.parse_signature(p.body) for p in iter_packets(data) if p.tag == 2)
+
+
+def test_post_quantum_algorithm_ids_are_named():
+    """RFC 9980 sec. 2.1 and 11: the ids, and the real appendix A keys and signatures that carry them."""
+    assert {i: registry.PK_ALGORITHMS[i].name for i in NAMES} == NAMES
+    for algo in (30, 31, 32, 33, 34):
+        assert registry.PK_ALGORITHMS[algo].signs
+    for algo in (35, 36):
+        assert registry.PK_ALGORITHMS[algo].encrypts
+    for appendix, primary, subkey, hash_id in RFC9980_VECTORS:
+        cert = load_key((RFC9980_DIR / f"{appendix}-public.asc").read_bytes())
+        assert cert.primary.algorithm == primary
+        assert cert.primary.algorithm_name == NAMES[primary]
+        assert len(cert.primary.fields["public"]) == sum(registry.PQ_PUBLIC_KEY_SIZES[primary])
+        assert cert.primary.problems == ()
+        assert cert.problems == []
+        (sub,) = cert.subkeys
+        assert sub.key.algorithm == subkey
+        assert len(sub.key.fields["public"]) == sum(registry.PQ_PUBLIC_KEY_SIZES[subkey])
+        sig = _vector_signature(appendix)
+        assert (sig.version, sig.pub_algo, sig.hash_algo) == (6, primary, hash_id)
+        assert len(sig.material) == sum(registry.PQ_SIGNATURE_SIZES[primary])
+        assert sig.usable
+        assert sig.issuer_fingerprint[1] == cert.primary.fingerprint  # the RFC's own fingerprint
+
+
+def test_a_version_4_ml_kem_768_subkey_is_the_one_allowed_below_version_6():
+    """RFC 9980 sec. 3.5, with the version 4 vector of appendix A.2."""
+    cert = load_key((RFC9980_DIR / "a2-public.asc").read_bytes())
+    assert (cert.primary.version, cert.primary.algorithm) == (4, 27)
+    (sub,) = cert.subkeys
+    assert (sub.key.version, sub.key.algorithm, sub.key.problems) == (4, 35, ())
+    body = sub.key.body
+    created = body[1:5]
+    material = body[6:]
+    # a version 4 primary key may not carry algorithm 35: only an encryption-capable subkey may
+    primary = parse_public_key(bytes([4]) + created + bytes([35]) + material)
+    assert any("RFC 9980 sec. 3.5" in p for p in primary.problems)
+    as_subkey = parse_public_key(bytes([4]) + created + bytes([35]) + material, subkey=True)
+    assert as_subkey.problems == ()
+    # algorithm 30 in a version 4 subkey is refused too
+    ml_dsa = load_key((RFC9980_DIR / "a3-public.asc").read_bytes()).primary
+    v4 = parse_public_key(bytes([4]) + created + bytes([30]) + ml_dsa.body[10:], subkey=True)
+    assert any("version 6 keys" in p for p in v4.problems)
+    with pytest.raises(KeyPacketError):
+        parse_public_key(bytes([4]) + created + bytes([35]) + material[:-1])
+
+
+def test_a_post_quantum_signature_needs_version_6_a_256_bit_hash_and_a_sound_binding():
+    """RFC 9980 sec. 5.3.1, 6.2.1, 7.2, 9.4 on the appendix A.3 signature, altered one octet at a time."""
+    sig = _vector_signature("a3")
+    assert sig.usable
+    body = sig.body
+    # hash id 8 (SHA2-256) becomes 2 (SHA-1): digest too small, and the salt size no longer fits
+    sha1 = signature.parse_signature(body[:3] + bytes([2]) + body[4:])
+    assert any("at least 256 bits" in p for p in sha1.problems)
+    assert not sha1.usable
+    # type 0x00 becomes 0x18 and the hash MD5: a binding with a weak hash is invalid (sec. 7.2)
+    binding = signature.parse_signature(bytes([6, 0x18, 30, 1]) + body[4:])
+    assert any("sec. 7.2" in p for p in binding.problems)
+    assert signature._pq_signature_problems(4, 0x00, 30, 8, 3373) == [
+        "ML-DSA-65+Ed25519 is used only with version 6 signatures (RFC 9980 sec. 5.3.1, 6.2.1)"
+    ]
+    assert signature._pq_signature_problems(6, 0x00, 30, 8, 3372)  # one octet short
+
+
+def test_post_quantum_signatures_are_checked_for_structure_but_not_verified():
+    """The left 16 bits of the appendix A hash stream are real evidence the recipe is right; the
+    mathematics is unsupported, loudly, and a binding with SHA-1 is malformed whatever the key."""
+    for appendix, _, _, _ in RFC9980_VECTORS:
+        cert = load_key((RFC9980_DIR / f"{appendix}-public.asc").read_bytes())
+        result = verify_document(b"Testing\n", _vector_signature(appendix), cert)
+        assert result.status == "unsupported"
+        assert result.checked == ("hash", "left16")
+        assert result.issuer == cert.primary.fingerprint
+        assert "RFC 9980" in (result.reason or "")
+        assert verify_document(b"Testing!\n", _vector_signature(appendix), cert).status == "invalid"

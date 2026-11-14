@@ -52,6 +52,10 @@ class SignatureError(PgpError):
     """A signature packet (RFC 9580 sec. 5.2) was malformed."""
 
 
+class TrustRefusedError(PgpError):
+    """A caller asked pgpenv for trust, which it reports as a claim and never computes (``wot.refuse``)."""
+
+
 class LimitError(PgpError):
     """A bound from :class:`pgpenv.limits.Limits` was exceeded, so the input was refused."""
 

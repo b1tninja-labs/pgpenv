@@ -45,7 +45,7 @@ certification, and the like, as :func:`pgpenv.signature.hash_stream` does.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -57,7 +57,15 @@ from .errors import (
     UnsupportedAlgorithmError,
 )
 from .packet import iter_packets
-from .registry import CURVES, HASHES, PK_ALGORITHMS
+from .policy import signature_refusal
+from .registry import (
+    CURVES,
+    HASHES,
+    PK_ALGORITHMS,
+    PQ_KEY_VERSIONS,
+    PQ_MIN_DIGEST_BITS,
+    PQ_SIGNATURE_SIZES,
+)
 from .signature import Signature, hash_stream, parse_signature
 from .wire import Mpi
 
@@ -70,6 +78,7 @@ __all__ = [
     "SelfSignature",
     "Status",
     "Verification",
+    "WeakHashTime",
     "check_self_signatures",
     "verify_back_signatures",
     "verify_binding",
@@ -117,6 +126,52 @@ class Verification:
     @property
     def valid(self) -> bool:
         return self.status == "valid"
+
+
+@dataclass(frozen=True, slots=True)
+class WeakHashTime:
+    """The creation-time half of RFC 9580 sec. 9.5, for a policy that validates MD5, SHA-1 or RIPEMD-160.
+
+    The RFC says an implementation "MUST NOT validate any recent signature" that depends on one of
+    them and "SHOULD NOT validate any old signature ... unless the signature's creation date predates
+    known weakness of the algorithm used, and the implementation is confident that the message has
+    been in the secure custody of the user the whole time". It names no date, so ``cutoffs`` maps a
+    hash id to the Unix time before which the caller says the weakness was not known, and ``custody``
+    is the caller's statement that the data was kept safe. A signature with a weak hash is accepted
+    for the primitive to check only if its hash has a cut-off, its creation time (a claim: nothing
+    vouches for it) is before that, and ``custody`` is true; anything else is ``refused``.
+    """
+
+    cutoffs: Mapping[int, int]
+    custody: bool = False
+
+
+def _weak_hash_refusal(sig: Signature, policy: Any, weak_hashes: WeakHashTime | None) -> str | None:
+    """Why a signature with MD5, SHA-1 or RIPEMD-160 must not be validated (sec. 9.5), or None."""
+    name = _WEAK_HASHES.get(sig.hash_algo)
+    if name is None:
+        return None
+    if policy == "openpgp":
+        return signature_refusal(sig.hash_algo)
+    if weak_hashes is None:
+        return None
+    cutoff = weak_hashes.cutoffs.get(sig.hash_algo)
+    if cutoff is None:
+        return (
+            f"no cut-off date was given for {name}, so every {name} signature is recent (sec. 9.5)"
+        )
+    if sig.created is None:
+        return (
+            f"the {name} signature has no creation time, so it cannot be shown to predate {cutoff}"
+        )
+    if sig.created >= cutoff:
+        return f"a {name} signature created at {sig.created}, not before {cutoff}, is recent (sec. 9.5)"
+    if not weak_hashes.custody:
+        return (
+            f"an old {name} signature is accepted only if the data has been in secure custody the "
+            "whole time (sec. 9.5), and the caller did not say so"
+        )
+    return None
 
 
 def _public_keys(signer: Any) -> list[PublicKey]:
@@ -192,6 +247,8 @@ def _minimum_digest_bits(key: PublicKey) -> int | None:
         return 256
     if algo == 28:
         return 512
+    if algo in PQ_SIGNATURE_SIZES:
+        return PQ_MIN_DIGEST_BITS  # RFC 9980 sec. 5.3.1, 6.2.1, 9.4
     if algo == 17:
         q = key.fields.get("q")
         return q.bit_length() if isinstance(q, int) else None
@@ -263,6 +320,11 @@ def _dispatch(sig: Signature, key: PublicKey, digest: bytes, hash_name: str, pol
         return crypto.ed25519(fields["public"], digest, sig.material, policy)
     if algo == 28:
         return crypto.ed448(fields["public"], digest, sig.material, policy)
+    if algo in PQ_SIGNATURE_SIZES:
+        raise UnsupportedAlgorithmError(
+            f"{PK_ALGORITHMS[algo].name} (RFC 9980) is read and its structure checked, "
+            "but no ML-DSA or SLH-DSA verification primitive is installed"
+        )
     raise UnsupportedAlgorithmError(f"public key algorithm {algo} has no signature verification")
 
 
@@ -301,6 +363,7 @@ def verify_signature(
     attribute: bytes | None = None,
     confirmed: Signature | None = None,
     policy: Any = "openpgp",
+    weak_hashes: WeakHashTime | None = None,
 ) -> Verification:
     """Check ``sig`` against ``signer`` over the data its type names (RFC 9580 sec. 5.2.4).
 
@@ -312,7 +375,8 @@ def verify_signature(
     certified or bound, which is not the signer for a certification by another key), ``subkey``,
     ``user_id`` or ``attribute`` for the key signatures; ``confirmed`` for 0x50. ``policy`` is
     ``"openpgp"`` (sec. 9.5, 12.4, 12.5), ``"legacy"`` (historical verification: SHA-1, MD5, DSA,
-    short RSA) or a sigwire policy object. A status is returned for everything the signature and the
+    short RSA) or a sigwire policy object. ``weak_hashes`` adds the creation-time rule of sec. 9.5
+    for MD5, SHA-1 and RIPEMD-160 (:class:`WeakHashTime`). A status is returned for everything the signature and the
     key do to themselves; see the module docstring.
     """
     candidates = [c for c in _public_keys(signer) if _can_sign(c)]
@@ -340,6 +404,7 @@ def verify_signature(
             attribute=attribute,
             confirmed=confirmed,
             policy=policy,
+            weak_hashes=weak_hashes,
         )
         if last.valid:
             return last
@@ -358,10 +423,14 @@ def _verify_with(
     attribute: bytes | None,
     confirmed: Signature | None,
     policy: Any,
+    weak_hashes: WeakHashTime | None = None,
 ) -> Verification:
     reason = _check_pairing(sig, signer)
     if reason is not None:
         return _result("malformed", reason, sig, signer)
+    refusal = _weak_hash_refusal(sig, policy, weak_hashes)
+    if refusal is not None:
+        return _result("refused", refusal, sig, signer)
     info = HASHES.get(sig.hash_algo)
     if info is None or info.hashlib_name is None:
         return _result("unsupported", f"unknown hash algorithm {sig.hash_algo}", sig, signer)
@@ -451,6 +520,7 @@ def verify_document(
     signer: PublicKey | Certificate | Sequence[Any],
     *,
     policy: Any = "openpgp",
+    weak_hashes: WeakHashTime | None = None,
 ) -> Verification:
     """A binary (0x00), text (0x01) or standalone (0x02) signature over ``data`` (sec. 5.2.4).
 
@@ -464,7 +534,7 @@ def verify_document(
             f"signature type {sig.sig_type:#04x} is not a document signature; "
             "use verify_certification, verify_binding or verify_direct_key"
         )
-    return verify_signature(sig, signer, document=data, policy=policy)
+    return verify_signature(sig, signer, document=data, policy=policy, weak_hashes=weak_hashes)
 
 
 def verify_cleartext(
@@ -472,6 +542,7 @@ def verify_cleartext(
     signer: PublicKey | Certificate | Sequence[Any],
     *,
     policy: Any = "openpgp",
+    weak_hashes: WeakHashTime | None = None,
 ) -> list[Verification]:
     """Every signature of a cleartext signed message, each checked over its signed text (sec. 7).
 
@@ -504,7 +575,12 @@ def verify_cleartext(
                 continue
             results.append(
                 verify_signature(
-                    sig, signer, document=parsed.text, text_is_canonical=True, policy=policy
+                    sig,
+                    signer,
+                    document=parsed.text,
+                    text_is_canonical=True,
+                    policy=policy,
+                    weak_hashes=weak_hashes,
                 )
             )
     return results
@@ -518,6 +594,7 @@ def verify_certification(
     user_id: bytes | None = None,
     attribute: bytes | None = None,
     policy: Any = "openpgp",
+    weak_hashes: WeakHashTime | None = None,
 ) -> Verification:
     """A certification (0x10 to 0x13) or certification revocation (0x30) of a User ID or attribute.
 
@@ -530,7 +607,13 @@ def verify_certification(
         raise SignatureError(f"signature type {sig.sig_type:#04x} is not a certification")
     target_key = target.primary if hasattr(target, "primary") else target
     return verify_signature(
-        sig, signer, key=target_key, user_id=user_id, attribute=attribute, policy=policy
+        sig,
+        signer,
+        key=target_key,
+        user_id=user_id,
+        attribute=attribute,
+        policy=policy,
+        weak_hashes=weak_hashes,
     )
 
 
@@ -540,12 +623,21 @@ def verify_direct_key(
     target: PublicKey | Certificate,
     *,
     policy: Any = "openpgp",
+    weak_hashes: WeakHashTime | None = None,
 ) -> Verification:
     """A direct key signature (0x1F) or key revocation (0x20) over ``target`` (sec. 5.2.4)."""
     if sig.sig_type not in (0x1F, 0x20):
         raise SignatureError(f"signature type {sig.sig_type:#04x} is not a direct key signature")
     target_key = target.primary if hasattr(target, "primary") else target
-    return verify_signature(sig, signer, key=target_key, policy=policy)
+    return verify_signature(sig, signer, key=target_key, policy=policy, weak_hashes=weak_hashes)
+
+
+def _is_pq(primary: PublicKey, subkey: PublicKey, sig: Signature) -> bool:
+    """Whether a binding concerns an RFC 9980 algorithm: the signer, the signature or the subkey."""
+    return any(
+        algorithm in PQ_KEY_VERSIONS
+        for algorithm in (primary.algorithm, subkey.algorithm, sig.pub_algo)
+    )
 
 
 def verify_binding(
@@ -554,12 +646,25 @@ def verify_binding(
     subkey: PublicKey,
     *,
     policy: Any = "openpgp",
+    weak_hashes: WeakHashTime | None = None,
 ) -> Verification:
     """A subkey binding (0x18) or subkey revocation (0x28): the primary key's signature over both keys."""
     if sig.sig_type not in (0x18, 0x28):
         raise SignatureError(f"signature type {sig.sig_type:#04x} is not a subkey signature")
     primary_key = primary.primary if hasattr(primary, "primary") else primary
-    return verify_signature(sig, primary_key, key=primary_key, subkey=subkey, policy=policy)
+    if sig.sig_type == 0x18 and sig.hash_algo in _WEAK_HASHES and _is_pq(primary_key, subkey, sig):
+        # RFC 9980 sec. 7.2: a subkey binding over its algorithms with MD5, SHA-1 or RIPEMD-160
+        # "MUST" be treated as invalid, whatever the policy says about the hash elsewhere
+        return _result(
+            "malformed",
+            f"a subkey binding made with {_WEAK_HASHES[sig.hash_algo]} is invalid "
+            "for a post-quantum algorithm (RFC 9980 sec. 7.2)",
+            sig,
+            primary_key,
+        )
+    return verify_signature(
+        sig, primary_key, key=primary_key, subkey=subkey, policy=policy, weak_hashes=weak_hashes
+    )
 
 
 def verify_back_signatures(
@@ -635,13 +740,20 @@ def check_self_signatures(
             if not by_primary(sig):
                 results.append(SelfSignature("user-id", position, sig, None))
                 continue
-            data = {"user_id": entry.body} if entry.kind == "id" else {"attribute": entry.body}
+            is_id = entry.kind == "id"
             results.append(
                 SelfSignature(
                     "user-id",
                     position,
                     sig,
-                    verify_certification(sig, primary, primary, policy=policy, **data),
+                    verify_certification(
+                        sig,
+                        primary,
+                        primary,
+                        user_id=entry.body if is_id else None,
+                        attribute=None if is_id else entry.body,
+                        policy=policy,
+                    ),
                 )
             )
     for position, sub in enumerate(cert.subkeys):

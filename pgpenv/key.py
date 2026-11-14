@@ -27,7 +27,14 @@ from typing import TYPE_CHECKING
 
 from .errors import KeyPacketError
 from .limits import DEFAULT_LIMITS, Limits
-from .registry import CURVES, NATIVE_KEY_SIZES, PK_ALGORITHMS, pk_name
+from .registry import (
+    CURVES,
+    NATIVE_KEY_SIZES,
+    PK_ALGORITHMS,
+    PQ_KEY_VERSIONS,
+    PQ_PUBLIC_KEY_SIZES,
+    pk_name,
+)
 from .wire import Mpi, read_mpi
 
 if TYPE_CHECKING:
@@ -175,6 +182,16 @@ def _material(
             )
         fields = {"public": data[pos : pos + size]}
         pos += size
+    elif algorithm in PQ_PUBLIC_KEY_SIZES:
+        # RFC 9980 sec. 4.3.2.1, 5.3.2.1, 6.2.2.1: fixed-length octet strings, no MPIs, no counts
+        first, second = PQ_PUBLIC_KEY_SIZES[algorithm]
+        if pos + first + second > len(data):
+            raise KeyPacketError(
+                f"{what}: public key needs {first + second} octets, {len(data) - pos} remain"
+            )
+        public = data[pos : pos + first + second]
+        fields = {"public": public, "traditional": public[:first], "post_quantum": public[first:]}
+        pos += first + second
     else:
         pos = len(data)
         problems.append(f"unknown public key algorithm {algorithm}; material kept raw")
@@ -242,6 +259,15 @@ def parse_public_key(
     if not secret and public_end != len(body):
         raise KeyPacketError(
             f"{len(body) - public_end} trailing octets after the public key material"
+        )
+    if algorithm in PQ_KEY_VERSIONS and not (
+        version in PQ_KEY_VERSIONS[algorithm] and (version == 6 or subkey)
+    ):
+        # RFC 9980 sec. 3.5: version 6 only, except algorithm 35 in a version 4 encryption subkey
+        where = "a version 4 subkey" if algorithm == 35 else "version 6 keys"
+        problems.append(
+            f"{pk_name(algorithm)} may be used only in {where} or newer (RFC 9980 sec. 3.5), "
+            f"found a version {version} {'subkey' if subkey else 'primary key'}"
         )
     public_body = body[:public_end]
 

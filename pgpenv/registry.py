@@ -1,8 +1,9 @@
 """The OpenPGP registries pgpenv names, as read from RFC 9580 on 2026-11-12.
 
 Every table cites its section. A number that is not in a table is reported as ``unknown(N)`` by
-the ``*_name`` helpers instead of being guessed at; RFC 9980 (post-quantum algorithms) is not
-read yet, so its algorithm identifiers are unknown here on purpose.
+the ``*_name`` helpers instead of being guessed at. The post-quantum algorithm identifiers 30 to 36
+are RFC 9980 sec. 2.1 and sec. 11, read on 2026-11-13 from the RFC Editor's text (rfclib was
+unreachable that day).
 """
 
 from __future__ import annotations
@@ -16,6 +17,10 @@ __all__ = [
     "HASHES",
     "KEY_FLAG_BITS",
     "PK_ALGORITHMS",
+    "PQ_KEY_VERSIONS",
+    "PQ_MIN_DIGEST_BITS",
+    "PQ_PUBLIC_KEY_SIZES",
+    "PQ_SIGNATURE_SIZES",
     "REVOCATION_REASONS",
     "SIGNATURE_TYPES",
     "SUBPACKET_NAMES",
@@ -56,8 +61,50 @@ PK_ALGORITHMS: dict[int, PkAlgorithm] = {
         PkAlgorithm(26, "X448", False, False, True),
         PkAlgorithm(27, "Ed25519", False, True, False),
         PkAlgorithm(28, "Ed448", False, True, False),
+        # RFC 9980 sec. 2.1, Tables 1 and 2, and the IANA additions of sec. 11.
+        PkAlgorithm(30, "ML-DSA-65+Ed25519", False, True, False),
+        PkAlgorithm(31, "ML-DSA-87+Ed448", False, True, False),
+        PkAlgorithm(32, "SLH-DSA-SHAKE-128s", False, True, False),
+        PkAlgorithm(33, "SLH-DSA-SHAKE-128f", False, True, False),
+        PkAlgorithm(34, "SLH-DSA-SHAKE-256s", False, True, False),
+        PkAlgorithm(35, "ML-KEM-768+X25519", False, False, True),
+        PkAlgorithm(36, "ML-KEM-1024+X448", False, False, True),
     )
 }
+
+# RFC 9980 sec. 11 (IANA): public key octets, and for the signature algorithms the signature
+# octets, of each post-quantum algorithm. Every field is a fixed-length octet string, concatenated
+# in the order the section lists them (sec. 4.3.2.1, 5.3.2.1, 6.2.2.1, 5.3.1, 6.2.1); each pair is
+# (traditional component, post-quantum component), with 0 where there is only one.
+PQ_PUBLIC_KEY_SIZES: dict[int, tuple[int, int]] = {
+    30: (32, 1952),
+    31: (57, 2592),
+    32: (0, 32),
+    33: (0, 32),
+    34: (0, 64),
+    35: (32, 1184),
+    36: (56, 1568),
+}
+PQ_SIGNATURE_SIZES: dict[int, tuple[int, int]] = {
+    30: (64, 3309),
+    31: (114, 4627),
+    32: (0, 7856),
+    33: (0, 17088),
+    34: (0, 29792),
+}
+# RFC 9980 sec. 3.5, 4.3.2, 5.3.2, 6.2.2: the key versions an algorithm may appear in. 35 is also
+# allowed in a version 4 encryption-capable subkey and nowhere else below version 6.
+PQ_KEY_VERSIONS: dict[int, tuple[int, ...]] = {
+    30: (6,),
+    31: (6,),
+    32: (6,),
+    33: (6,),
+    34: (6,),
+    35: (4, 6),
+    36: (6,),
+}
+# RFC 9980 sec. 5.3.1, 6.2.1, 9.4: a PQ(/T) signature is version 6 and hashes with >= 256 bits.
+PQ_MIN_DIGEST_BITS = 256
 
 
 def pk_name(algorithm: int) -> str:

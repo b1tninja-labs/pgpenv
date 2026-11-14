@@ -25,7 +25,14 @@ from typing import TYPE_CHECKING
 from .errors import LimitError, PgpError, SignatureError
 from .limits import DEFAULT_LIMITS, Limits
 from .packet import decode_length
-from .registry import HASHES, PK_ALGORITHMS, SUBPACKET_NAMES
+from .registry import (
+    HASHES,
+    PK_ALGORITHMS,
+    PQ_MIN_DIGEST_BITS,
+    PQ_SIGNATURE_SIZES,
+    SUBPACKET_NAMES,
+    hash_name,
+)
 from .wire import Mpi, read_mpi
 
 if TYPE_CHECKING:
@@ -352,6 +359,30 @@ class Signature:
         return tuple(out)
 
 
+def _pq_signature_problems(
+    version: int, sig_type: int, pub_algo: int, hash_algo: int, material: int
+) -> list[str]:
+    """The structural MUSTs of RFC 9980 for a signature by algorithm 30 to 34, as problems."""
+    name = PK_ALGORITHMS[pub_algo].name
+    found: list[str] = []
+    if version != 6:
+        found.append(f"{name} is used only with version 6 signatures (RFC 9980 sec. 5.3.1, 6.2.1)")
+    expected = sum(PQ_SIGNATURE_SIZES[pub_algo])
+    if material != expected:
+        found.append(f"{name} signature is {expected} octets, found {material} (RFC 9980 sec. 11)")
+    info = HASHES.get(hash_algo)
+    if info is not None and 8 * info.digest_size < PQ_MIN_DIGEST_BITS:
+        found.append(
+            f"{name} needs a hash of at least {PQ_MIN_DIGEST_BITS} bits, "
+            f"{info.name} has {8 * info.digest_size} (RFC 9980 sec. 5.3.1, 6.2.1, 9.4)"
+        )
+    if sig_type == 0x18 and hash_algo in (1, 2, 3):
+        found.append(
+            f"a subkey binding by {name} made with {hash_name(hash_algo)} is invalid (RFC 9980 sec. 7.2)"
+        )
+    return found
+
+
 def parse_signature(body: bytes, limits: Limits = DEFAULT_LIMITS, depth: int = 0) -> Signature:
     """Decode a Signature packet body (RFC 9580 sec. 5.2); the packet header is not part of it."""
     if depth > limits.max_embedded_depth:
@@ -417,6 +448,8 @@ def parse_signature(body: bytes, limits: Limits = DEFAULT_LIMITS, depth: int = 0
         problems.append(
             f"{PK_ALGORITHMS[pub_algo].name} signature is {native} octets, found {len(material)}"
         )
+    if pub_algo in PQ_SIGNATURE_SIZES:
+        problems += _pq_signature_problems(version, sig_type, pub_algo, hash_algo, len(material))
     if hash_algo == 1:
         problems.append("a signature using MD5, a hash known to be weak (sec. 5.2.5)")
     return Signature(
